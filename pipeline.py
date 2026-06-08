@@ -20,6 +20,7 @@ DATA_DIR = BASE_DIR / "data"
 MODELS_DIR = BASE_DIR / "models"
 SPOTIFY_CSV = DATA_DIR / "dataset_clean2.csv"
 TAGS_CSV = DATA_DIR / "tags_cache2.csv"
+DODANI_CSV = DATA_DIR / "dodani_artysci.csv"   # pula nowych artystow dodanych z aplikacji
 
 RANDOM_STATE = 42
 
@@ -69,6 +70,33 @@ def load_raw():
 def normalizuj_tag(t):
     """Ujednolicenie tagu: male litery, bez myslnikow."""
     return str(t).strip().lower().replace('-', ' ')
+
+
+def dodaj_artyste_do_bazy(nazwa, cechy_dict, klaster, top_track=''):
+    """
+    Dopisuje nowego artyste (wprowadzonego w aplikacji) do puli bazy.
+    Tworzy plik data/dodani_artysci.csv przy pierwszym uzyciu.
+    Zwraca laczna liczbe dodanych artystow.
+    """
+    from datetime import datetime
+    wiersz = {'artist_main': nazwa, 'cluster': int(klaster),
+              'top_track': top_track, 'dodano': datetime.now().strftime('%Y-%m-%d %H:%M')}
+    wiersz.update({k: float(v) for k, v in cechy_dict.items()})
+    nowy = pd.DataFrame([wiersz])
+    if DODANI_CSV.exists():
+        stare = pd.read_csv(DODANI_CSV)
+        polaczone = pd.concat([stare, nowy], ignore_index=True)
+    else:
+        polaczone = nowy
+    polaczone.to_csv(DODANI_CSV, index=False, encoding='utf-8')
+    return len(polaczone)
+
+
+def wczytaj_dodanych():
+    """Zwraca DataFrame z dodanymi artystami (lub pusty, gdy plik nie istnieje)."""
+    if DODANI_CSV.exists():
+        return pd.read_csv(DODANI_CSV)
+    return pd.DataFrame()
 
 
 # ===========================================================================

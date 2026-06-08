@@ -67,6 +67,54 @@ st.success(f"### -> Klaster {klaster}  ({OPISY.get(klaster, '')})")
 st.caption("Odleglosci do centrow: " +
            "  ".join(f"k{j}={d:.2f}" for j, d in enumerate(odl)))
 
+# --- Rekomendacje: 10 najbardziej podobnych artystow z klastra --------------
+st.divider()
+st.subheader("Rekomendacje - 10 artystow z tej grupy najbardziej podobnych do profilu")
+st.markdown("System liczy odleglosc wpisanego profilu do kazdego artysty w grupie "
+            "(w przestrzeni standaryzowanych cech) i zwraca najblizszych, wraz z ich "
+            "najpopularniejszym utworem.")
+
+prof_klaster = prof[prof['cluster'] == klaster].copy()
+X_klaster = scaler.transform(prof_klaster[feat])
+prof_klaster['podobienstwo'] = np.linalg.norm(X_klaster - X_new, axis=1)
+rekom = prof_klaster.nsmallest(10, 'podobienstwo')
+
+tabela_rek = rekom[['artist_main', 'main_genre', 'top_track',
+                    'top_track_pop', 'popularity_mean', 'podobienstwo']].copy()
+tabela_rek.columns = ['Artysta', 'Glowny gatunek', 'Najpopularniejszy utwor',
+                      'Popularnosc utworu', 'Sr. popularnosc', 'Odleglosc (mniej=lepiej)']
+st.dataframe(tabela_rek.style.format({
+    'Popularnosc utworu': '{:.0f}', 'Sr. popularnosc': '{:.1f}',
+    'Odleglosc (mniej=lepiej)': '{:.3f}'})
+    .background_gradient(cmap='Greens_r', subset=['Odleglosc (mniej=lepiej)']),
+    width='stretch', hide_index=True)
+
+# --- Dodanie nowego artysty do puli bazy ------------------------------------
+st.divider()
+st.subheader("Dodaj tego artyste do bazy")
+st.markdown("Jesli profil pasuje, mozesz dopisac nowego artyste do puli danych "
+            "(z przypisanym klastrem). W razie potrzeby uzupelnij brakujace pola.")
+
+with st.form("dodaj_artyste"):
+    cc1, cc2 = st.columns(2)
+    nazwa_art = cc1.text_input("Nazwa artysty", placeholder="np. Nowy Wykonawca")
+    top_utwor = cc2.text_input("Najpopularniejszy utwor (opcjonalnie)", placeholder="np. Tytul singla")
+    wyslij = st.form_submit_button("Dodaj do bazy", type="primary")
+
+if wyslij:
+    if not nazwa_art.strip():
+        st.warning("Podaj nazwe artysty, aby dodac go do bazy.")
+    else:
+        ile = P.dodaj_artyste_do_bazy(nazwa_art.strip(), wart, klaster, top_utwor.strip())
+        st.success(f"Dodano artyste **{nazwa_art.strip()}** do klastra {klaster}. "
+                   f"Pula dodanych artystow liczy teraz {ile}.")
+
+dodani = P.wczytaj_dodanych()
+if not dodani.empty:
+    with st.expander(f"Artysci dodani z aplikacji ({len(dodani)})"):
+        kol_pokaz = [c for c in ['artist_main', 'cluster', 'top_track', 'dodano'] if c in dodani.columns]
+        st.dataframe(dodani[kol_pokaz].iloc[::-1], width='stretch', hide_index=True)
+
 # --- Wizualizacja PCA -------------------------------------------------------
 st.divider()
 c1, c2 = st.columns([3, 2])
@@ -83,8 +131,22 @@ with c1:
     punkt = alt.Chart(pd.DataFrame({'PC1': [pc[0]], 'PC2': [pc[1]]})).mark_point(
         shape='diamond', size=420, color='black', filled=True).encode(
         x='PC1:Q', y='PC2:Q')
-    st.altair_chart(base + punkt, width='stretch')
-    st.caption("Czarny romb = wprowadzony profil.")
+
+    wykres = base + punkt
+    # Artysci dodani z aplikacji - rzutowani tym samym scaler+PCA
+    if not dodani.empty and all(f in dodani.columns for f in feat):
+        coords_d = pca.transform(scaler.transform(dodani[feat]))
+        df_dod = pd.DataFrame({'PC1': coords_d[:, 0], 'PC2': coords_d[:, 1],
+                               'artist_main': dodani['artist_main'].values,
+                               'cluster': dodani['cluster'].astype(str).values})
+        warstwa_dod = alt.Chart(df_dod).mark_point(
+            shape='triangle-up', size=220, color='red', filled=True,
+            stroke='black', strokeWidth=0.5).encode(
+            x='PC1:Q', y='PC2:Q', tooltip=['artist_main', 'cluster'])
+        wykres = base + warstwa_dod + punkt
+
+    st.altair_chart(wykres, width='stretch')
+    st.caption("Czarny romb = wprowadzony profil; czerwone trojkaty = artysci dodani do bazy.")
 
 with c2:
     st.markdown("##### Profil klastrow (srednie cech)")

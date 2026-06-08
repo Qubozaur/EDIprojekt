@@ -151,11 +151,23 @@ def train_clustering():
     cluster_means = prof.groupby('cluster')[feat].mean().round(3)
     ranges = prof[feat].agg(['min', 'max']).T
 
+    # Najpopularniejszy utwor kazdego artysty (do rekomendacji)
+    df_tracks, _ = P.load_raw()
+    idx_top = df_tracks.groupby('artist_main')['popularity'].idxmax()
+    top_tracks = df_tracks.loc[idx_top, ['artist_main', 'track_name', 'popularity']]
+    top_tracks = top_tracks.rename(columns={'track_name': 'top_track',
+                                            'popularity': 'top_track_pop'})
+    prof = prof.merge(top_tracks, on='artist_main', how='left')
+
+    # Kolumny zapisywane do profilu: metadane + surowe cechy (do rankingu podobienstwa)
+    kol_profil = (['artist_main', 'main_genre', 'popularity_mean', 'cluster',
+                   'PC1', 'PC2', 'top_track', 'top_track_pop'] + feat)
+    kol_profil = list(dict.fromkeys(kol_profil))  # bez duplikatu popularity_mean
+
     joblib.dump({
         'kmeans': kmeans, 'scaler': scaler, 'pca': pca,
         'feature_cols': feat,
-        'profile': prof[['artist_main', 'main_genre', 'popularity_mean',
-                         'cluster', 'PC1', 'PC2']],
+        'profile': prof[kol_profil],
         'cluster_means': cluster_means,
         'centers_pca': centers_pca,
         'ranges': ranges,

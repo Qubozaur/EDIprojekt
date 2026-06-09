@@ -1,11 +1,3 @@
-"""
-Trenuje i zapisuje wszystkie modele uzywane przez aplikacje webowa.
-Uruchom raz:  python train_models.py
-Artefakty trafiaja do katalogu models/ (ladowane potem przez strony Streamlit).
-
-Uzywane sa najlepsze hiperparametry znalezione wczesniej w notebookach przez
-GridSearchCV - dzieki temu trening jest szybki, a wyniki spojne z raportem.
-"""
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -32,7 +24,6 @@ import pipeline as P
 P.MODELS_DIR.mkdir(exist_ok=True, parents=True)
 
 
-# ===========================================================================
 def train_classification():
     print("[1/3] Klasyfikacja gatunku ...")
     df_artist, meta = P.build_classification()
@@ -55,7 +46,6 @@ def train_classification():
     X_tr_s[kol_skalowane] = scaler.fit_transform(X_tr[kol_skalowane])
     X_te_s[kol_skalowane] = scaler.transform(X_te[kol_skalowane])
 
-    # Najlepsze parametry z GridSearchCV (notebook)
     knn = KNeighborsClassifier(n_neighbors=5, metric='manhattan', weights='distance')
     tree = DecisionTreeClassifier(criterion='gini', max_depth=30,
                                   min_samples_leaf=10, min_samples_split=2,
@@ -79,7 +69,6 @@ def train_classification():
 
     metryki = {'kNN': ocena(knn), 'Drzewo decyzyjne': ocena(tree)}
 
-    # Ablation: audio vs tagi vs razem (F1 macro)
     n_audio = len(kol_audio)
     ablation = {}
     for nazwa, cols in [('Tylko audio', slice(0, n_audio)),
@@ -94,7 +83,6 @@ def train_classification():
             'Drzewo': f1_score(y_te, d.predict(Xa_te), average='macro', zero_division=0),
         }
 
-    # F1 per klasa (kNN) + waznosc cech (drzewo)
     klasy = sorted(y_te.unique())
     f1_klasy = pd.DataFrame({
         'kNN': f1_score(y_te, knn.predict(X_te_s), average=None, labels=klasy, zero_division=0),
@@ -103,7 +91,6 @@ def train_classification():
 
     waznosci = pd.Series(tree.feature_importances_, index=X.columns).sort_values(ascending=False)
 
-    # Macierz pomylek kNN (znormalizowana - recall per klasa)
     cm = confusion_matrix(y_te, knn.predict(X_te_s), labels=knn.classes_, normalize='true')
 
     joblib.dump({
@@ -124,7 +111,6 @@ def train_classification():
     print(f"      kNN F1={metryki['kNN']['f1_macro']:.3f}  Drzewo F1={metryki['Drzewo decyzyjne']['f1_macro']:.3f}")
 
 
-# ===========================================================================
 def train_clustering():
     print("[2/3] Grupowanie artystow ...")
     prof = P.build_clustering()
@@ -133,7 +119,6 @@ def train_clustering():
     scaler = StandardScaler()
     X = scaler.fit_transform(prof[feat])
 
-    # Usun outliery DBSCAN (jak w notebooku)
     db = DBSCAN(eps=2.5, min_samples=5).fit(X)
     keep = db.labels_ != -1
     X = X[keep]
@@ -151,7 +136,6 @@ def train_clustering():
     cluster_means = prof.groupby('cluster')[feat].mean().round(3)
     ranges = prof[feat].agg(['min', 'max']).T
 
-    # Najpopularniejszy utwor kazdego artysty (do rekomendacji)
     df_tracks, _ = P.load_raw()
     idx_top = df_tracks.groupby('artist_main')['popularity'].idxmax()
     top_tracks = df_tracks.loc[idx_top, ['artist_main', 'track_name', 'popularity']]
@@ -159,10 +143,9 @@ def train_clustering():
                                             'popularity': 'top_track_pop'})
     prof = prof.merge(top_tracks, on='artist_main', how='left')
 
-    # Kolumny zapisywane do profilu: metadane + surowe cechy (do rankingu podobienstwa)
     kol_profil = (['artist_main', 'main_genre', 'popularity_mean', 'cluster',
                    'PC1', 'PC2', 'top_track', 'top_track_pop'] + feat)
-    kol_profil = list(dict.fromkeys(kol_profil))  # bez duplikatu popularity_mean
+    kol_profil = list(dict.fromkeys(kol_profil))
 
     joblib.dump({
         'kmeans': kmeans, 'scaler': scaler, 'pca': pca,
@@ -178,7 +161,6 @@ def train_clustering():
     print(f"      K={P.CLUSTER_K}  Silhouette={sil:.3f}  n={len(prof)}")
 
 
-# ===========================================================================
 def train_regression():
     print("[3/3] Regresja popularnosci ...")
     _, artist_clean = P.build_regression()
@@ -192,7 +174,6 @@ def train_regression():
     X_tr_s = scaler.fit_transform(X_tr)
     X_te_s = scaler.transform(X_te)
 
-    # Dobor alpha dla Ridge i Poly2+Ridge (prosty sweep)
     from sklearn.model_selection import cross_val_score
     X_all_s = StandardScaler().fit_transform(X)
     alphas = [0.1, 1.0, 10.0, 100.0]
@@ -223,11 +204,9 @@ def train_regression():
         if nazwa != 'Baseline (srednia)' and r2 > najlepszy_r2:
             najlepszy_r2, najlepszy_nazwa, najlepszy_model = r2, nazwa, m
 
-    # Standaryzowane wspolczynniki OLS (interpretacja wplywu cech)
     ols = LinearRegression().fit(X_tr_s, y_tr)
     coefs = pd.Series(ols.coef_, index=feat).sort_values()
 
-    # Predykcje najlepszego modelu vs rzeczywiste (do wykresu)
     pred_best = najlepszy_model.predict(X_te_s)
 
     joblib.dump({

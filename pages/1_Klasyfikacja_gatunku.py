@@ -1,11 +1,3 @@
-"""
-Strona: KLASYFIKACJA gatunku artysty.
-Kategoria: klasyfikacja + dane semantyczne (tagi Last.fm).
-
-Interakcja z uzytkownikiem:
-  A) wybor istniejacego artysty -> predykcja i porownanie z prawda,
-  B) reczne wprowadzenie cech utworu + tagow/komentarza -> szacowanie gatunku.
-"""
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -62,9 +54,6 @@ def pokaz_predykcje(X, prawda=None):
 tab1, tab2, tab3 = st.tabs(["Artysta ze zbioru", "Nowy utwor / komentarz",
                             "Ocena modeli"])
 
-# ===========================================================================
-# TAB 1 - klasyfikacja istniejacego artysty
-# ===========================================================================
 with tab1:
     st.markdown("Wybierz artyste - model oszacuje gatunek na podstawie jego cech audio i tagow, "
                 "a wynik porownamy z prawdziwa etykieta.")
@@ -84,12 +73,9 @@ with tab1:
     st.divider()
     pokaz_predykcje(X, prawda)
 
-# ===========================================================================
-# TAB 2 - reczne wprowadzenie utworu + komentarz (klasyfikacja nowego komentarza)
-# ===========================================================================
 with tab2:
     st.markdown("Ustaw cechy utworu i opisz go tagami - system **nie zna** tego utworu i "
-                "oszacuje gatunek. To realizuje *klasyfikacje nowego komentarza/utworu*.")
+                "oszacuje gatunek.")
 
     sr = M['srednie_audio']
     zakresy01 = {'danceability', 'valence', 'acousticness', 'instrumentalness',
@@ -133,9 +119,6 @@ with tab2:
         st.divider()
         pokaz_predykcje(X)
 
-# ===========================================================================
-# TAB 3 - ocena modeli
-# ===========================================================================
 with tab3:
     st.markdown("##### Metryki na zbiorze testowym")
     tab_metryk = pd.DataFrame(M['metryki']).T[

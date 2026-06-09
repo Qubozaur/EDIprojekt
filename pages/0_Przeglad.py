@@ -1,7 +1,3 @@
-"""
-Strona: PRZEGLAD / EDA.
-Opis projektu, realizacja zalozen i wstepna analiza danych.
-"""
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -16,7 +12,6 @@ st.caption("Projekt EDI: grupowanie, klasyfikacja i regresja na danych o utworac
 st.info("Wybierz komponent z nawigacji u gory: **Klasyfikacja**, **Grupowanie** "
         "lub **Regresja**. Kazda strona pobiera dane od uzytkownika i zwraca wynik modelu.")
 
-# --- Realizacja zalozen -----------------------------------------------------
 st.subheader("Realizacja zalozen projektu")
 c1, c2 = st.columns(2)
 with c1:
@@ -43,7 +38,6 @@ with c2:
 
 st.divider()
 
-# --- Przeglad danych --------------------------------------------------------
 st.subheader("Przeglad zbioru danych (EDA)")
 
 df_tracks = load_tracks()
@@ -66,7 +60,6 @@ with st.expander("Przygotowanie danych (pipeline)"):
 5. **Podzial:** train/test (stratyfikowany dla klasyfikacji) + walidacja krzyzowa.
 """)
 
-# --- Wykres: rozklad klas ---------------------------------------------------
 st.markdown("##### Rozklad klas - liczba artystow na gatunek")
 rozklad = df_artist['gatunek_glowny'].value_counts()
 st.bar_chart(rozklad, color="#1DB954", height=320)

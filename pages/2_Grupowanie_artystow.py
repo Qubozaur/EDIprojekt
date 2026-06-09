@@ -1,10 +1,3 @@
-"""
-Strona: GRUPOWANIE artystow (K-Means).
-Kategoria: grupowanie (uczenie nienadzorowane).
-
-Interakcja: uzytkownik wprowadza profil nowego artysty -> przyporzadkowanie do grupy
-(realizuje "przyporzadkowanie do grupy nowego profilu klienta").
-"""
 import altair as alt
 import numpy as np
 import pandas as pd
@@ -21,11 +14,9 @@ kmeans, scaler, pca = M['kmeans'], M['scaler'], M['pca']
 feat = M['feature_cols']
 prof = M['profile']
 
-# --- Charakterystyka klastrow ----------------------------------------------
-m1, m2, m3 = st.columns(3)
+m1, m2 = st.columns(2)
 m1.metric("Liczba klastrow (K)", M['K'])
-m2.metric("Silhouette", f"{M['silhouette']:.3f}")
-m3.metric("Artysci w analizie", len(prof))
+m2.metric("Artysci w analizie", len(prof))
 
 OPISY = {
     0: "spokojne / akustyczne - wyzsza popularnosc",
@@ -67,7 +58,6 @@ st.success(f"### -> Klaster {klaster}  ({OPISY.get(klaster, '')})")
 st.caption("Odleglosci do centrow: " +
            "  ".join(f"k{j}={d:.2f}" for j, d in enumerate(odl)))
 
-# --- Rekomendacje: 10 najbardziej podobnych artystow z klastra --------------
 st.divider()
 st.subheader("Rekomendacje - 10 artystow z tej grupy najbardziej podobnych do profilu")
 st.markdown("System liczy odleglosc wpisanego profilu do kazdego artysty w grupie "
@@ -89,7 +79,6 @@ st.dataframe(tabela_rek.style.format({
     .background_gradient(cmap='Greens_r', subset=['Odleglosc (mniej=lepiej)']),
     width='stretch', hide_index=True)
 
-# --- Dodanie nowego artysty do puli bazy ------------------------------------
 st.divider()
 st.subheader("Dodaj tego artyste do bazy")
 st.markdown("Jesli profil pasuje, mozesz dopisac nowego artyste do puli danych "
@@ -115,7 +104,6 @@ if not dodani.empty:
         kol_pokaz = [c for c in ['artist_main', 'cluster', 'top_track', 'dodano'] if c in dodani.columns]
         st.dataframe(dodani[kol_pokaz].iloc[::-1], width='stretch', hide_index=True)
 
-# --- Wizualizacja PCA -------------------------------------------------------
 st.divider()
 c1, c2 = st.columns([3, 2])
 
@@ -133,7 +121,6 @@ with c1:
         x='PC1:Q', y='PC2:Q')
 
     wykres = base + punkt
-    # Artysci dodani z aplikacji - rzutowani tym samym scaler+PCA
     if not dodani.empty and all(f in dodani.columns for f in feat):
         coords_d = pca.transform(scaler.transform(dodani[feat]))
         df_dod = pd.DataFrame({'PC1': coords_d[:, 0], 'PC2': coords_d[:, 1],
@@ -155,7 +142,6 @@ with c2:
     st.markdown("##### Licznosc")
     st.bar_chart(pd.Series(M['sizes']), height=180, color="#1DB954")
 
-# --- Dominujace gatunki / przykladowi artysci ------------------------------
 st.divider()
 st.markdown("##### Co jest w klastrze?")
 kolumny = st.columns(M['K'])

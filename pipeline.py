@@ -1,50 +1,35 @@
-"""
-Wspolny modul danych i preprocessingu dla aplikacji EDI.
-Odtwarza logike przygotowania danych z trzech notebookow:
-  - klasyfikacja_gatunku.ipynb  (klasyfikacja + dane semantyczne / tagi Last.fm)
-  - grupowanie_artystow.ipynb   (grupowanie K-Means)
-  - regresja.ipynb              (regresja popularnosci)
-
-Dzieki jednemu zrodlu prawdy aplikacja webowa i skrypt trenujacy uzywaja
-dokladnie tych samych transformacji.
-"""
 from collections import Counter
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-# --- Sciezki ---------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 MODELS_DIR = BASE_DIR / "models"
 SPOTIFY_CSV = DATA_DIR / "dataset_clean2.csv"
 TAGS_CSV = DATA_DIR / "tags_cache2.csv"
-DODANI_CSV = DATA_DIR / "dodani_artysci.csv"   # pula nowych artystow dodanych z aplikacji
+DODANI_CSV = DATA_DIR / "dodani_artysci.csv"
 
 RANDOM_STATE = 42
 
-# --- Wspolne zestawy cech --------------------------------------------------
 AUDIO_NUM = ['danceability', 'energy', 'valence', 'acousticness', 'instrumentalness',
              'liveness', 'speechiness', 'loudness', 'tempo', 'duration_ms']
 AUDIO_DOM = ['mode', 'time_signature', 'explicit']
 
-# Klasyfikacja: po usunieciu energy (redundancja |r|>0.7 z loudness)
-CLF_AUDIO_NUM = [f for f in AUDIO_NUM if f != 'energy']          # 9 cech
-CLF_USUNIETE_GATUNKI = {'malay', 'disney', 'kids', 'study'}      # klasy "mood", nie gatunki
+CLF_AUDIO_NUM = [f for f in AUDIO_NUM if f != 'energy']
+CLF_USUNIETE_GATUNKI = {'malay', 'disney', 'kids', 'study'}
 CLF_MIN_ARTYSTOW = 50
 CLF_MIN_DF_TAGOW = 6
 
-# Grupowanie: bez loudness i acousticness (korelacja), + popularity_mean
 CLUSTER_AUDIO = ['danceability', 'energy', 'loudness', 'speechiness',
                  'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo']
 CLUSTER_FEATURES = [f for f in CLUSTER_AUDIO
-                    if f not in ('loudness', 'acousticness')] + ['popularity_mean']  # 8 cech
+                    if f not in ('loudness', 'acousticness')] + ['popularity_mean']
 CLUSTER_SPOKEN = {'comedy', 'spoken-word'}
 CLUSTER_MIN_TRACKS = 5
 CLUSTER_K = 3
 
-# Regresja: bazowe cechy audio + inzynieria + usuniecie wielokoliniowych
 REG_AUDIO_BASE = ['danceability', 'energy', 'speechiness', 'acousticness',
                   'instrumentalness', 'liveness', 'valence', 'tempo', 'mode', 'loudness']
 REG_ENGINEERED = ['log_duration']
@@ -53,9 +38,6 @@ REG_FEATURES = [f for f in (REG_AUDIO_BASE + REG_ENGINEERED) if f not in REG_REM
 REG_MIN_TRACKS = 5
 
 
-# ===========================================================================
-#  Wczytanie surowych danych
-# ===========================================================================
 def load_raw():
     """Zwraca (df_tracks, df_tags) - surowe tabele utworow i tagow."""
     df_tracks = pd.read_csv(SPOTIFY_CSV)
@@ -99,9 +81,6 @@ def wczytaj_dodanych():
     return pd.DataFrame()
 
 
-# ===========================================================================
-#  KLASYFIKACJA - budowa tabeli artysta -> gatunek + tagi semantyczne
-# ===========================================================================
 def build_classification(df_tracks=None, df_tags=None):
     """
     Buduje df_artist dla klasyfikacji oraz zwraca metadane (lista klas, slownik tagow).
@@ -118,7 +97,6 @@ def build_classification(df_tracks=None, df_tags=None):
         lambda s: Counter(s).most_common(1)[0][0])
     df_artist['gatunek_glowny'] = gatunek_glowny
 
-    # Tagi Last.fm (dane semantyczne)
     df_tags = df_tags.copy()
     df_tags['artist_main'] = df_tags['artist'].astype(str).str.strip()
     df_tags['tagi'] = df_tags['tags'].fillna('').apply(
@@ -127,11 +105,9 @@ def build_classification(df_tracks=None, df_tags=None):
     mapa_tagow = df_tags.set_index('artist_main')['tagi'].to_dict()
     df_artist['tagi'] = df_artist.index.map(lambda a: mapa_tagow.get(a, []))
 
-    # Usun tag identyczny z etykieta gatunku (zapobiega "wycieku" celu)
     df_artist['tagi'] = df_artist.apply(
         lambda r: [t for t in r['tagi'] if t != normalizuj_tag(r['gatunek_glowny'])], axis=1)
 
-    # Filtry klas i tagow
     df_artist = df_artist[~df_artist['gatunek_glowny'].isin(CLF_USUNIETE_GATUNKI)].copy()
     liczba = df_artist['gatunek_glowny'].value_counts()
     klasy_ok = liczba[liczba >= CLF_MIN_ARTYSTOW].index.tolist()
@@ -165,7 +141,6 @@ def parse_tagi_uzytkownika(tekst, tagi_slownik):
         if frag in slownik_set and frag not in znalezione:
             znalezione.append(frag)
         else:
-            # sprobuj dopasowac pojedyncze slowa/bigramy z komentarza
             slowa = frag.split()
             for n in (2, 1):
                 for i in range(len(slowa) - n + 1):
@@ -175,9 +150,6 @@ def parse_tagi_uzytkownika(tekst, tagi_slownik):
     return znalezione
 
 
-# ===========================================================================
-#  GRUPOWANIE - profile artystow
-# ===========================================================================
 def build_clustering(df_tracks=None):
     """Buduje profile artystow dla grupowania (grupowanie_artystow.ipynb)."""
     if df_tracks is None:
@@ -205,9 +177,6 @@ def build_clustering(df_tracks=None):
     return prof
 
 
-# ===========================================================================
-#  REGRESJA - profile artystow (mediana popularnosci jako cel)
-# ===========================================================================
 def build_regression(df_tracks=None):
     """Buduje tabele artystow dla regresji (regresja.ipynb)."""
     if df_tracks is None:
@@ -223,7 +192,6 @@ def build_regression(df_tracks=None):
     artist_df = artist_df[artist_df['artist_main'].map(n_tracks) >= REG_MIN_TRACKS]
     artist_df = artist_df.reset_index(drop=True)
 
-    # Filtracja outlierow 3xIQR po finalnych cechach (wariant z notebooka)
     mask = pd.Series(True, index=artist_df.index)
     for feat in REG_FEATURES:
         q1, q3 = artist_df[feat].quantile(0.25), artist_df[feat].quantile(0.75)

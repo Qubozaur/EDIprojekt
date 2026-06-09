@@ -1,9 +1,3 @@
-"""
-Strona: REGRESJA popularnosci artysty.
-Kategoria: analiza regresji.
-
-Interakcja: uzytkownik ustawia cechy audio -> model przewiduje popularnosc (0-100).
-"""
 import altair as alt
 import numpy as np
 import pandas as pd
@@ -18,10 +12,9 @@ naglowek_strony("Regresja popularnosci",
 M = load_model("regression")
 model, scaler, feat = M['model'], M['scaler'], M['features']
 
-m1, m2, m3 = st.columns(3)
+m1, m2 = st.columns(2)
 m1.metric("Najlepszy model", M['model_nazwa'].split('(')[0].strip())
-m2.metric("R2 (test)", f"{M['wyniki'][M['model_nazwa']]['R2']:.3f}")
-m3.metric("Artysci (po IQR)", M['n'])
+m2.metric("Artysci (po IQR)", M['n'])
 
 st.divider()
 st.subheader("Oszacuj popularnosc")
